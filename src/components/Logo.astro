@@ -1,0 +1,96 @@
+---
+// The wordmark as two clips butted together on a timeline: the join between
+// them is a cut (an "edit point"). Green = short film, blue = YouTube, the two
+// track colors from the Selected work timeline. The gold playhead rests on the
+// cut; on hover it plays through AMER and runs back when the pointer leaves.
+interface Props {
+  /** Render as a link (default: home). Pass null for a plain, non-link logo. */
+  href?: string | null;
+}
+const { href = '/' } = Astro.props;
+const Tag = href ? 'a' : 'span';
+---
+
+<Tag class="logo" href={href ?? undefined} aria-label={href ? 'Jamal Amer, home' : 'Jamal Amer'}>
+  <span class="clip first" aria-hidden="true">JAMAL</span>
+  <span class="clip last" aria-hidden="true">AMER</span>
+  <span class="playhead" aria-hidden="true"><span class="head"></span></span>
+</Tag>
+
+<style>
+  .logo {
+    position: relative;
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    --cut-gap: 6px; /* the gap between the clips */
+    --line-width: 2px;
+    column-gap: var(--cut-gap);
+    font: 800 13px/1 var(--sans);
+    letter-spacing: 0.08em;
+    text-decoration: none;
+  }
+  .clip {
+    grid-row: 1;
+    padding: 6px calc(8px - 0.08em) 5px 8px; /* letter-spacing adds a trailing gap; trim it */
+    border-radius: 3px;
+    color: var(--bg);
+  }
+  .first {
+    grid-column: 1;
+    background: var(--c-short);
+  }
+  .last {
+    grid-column: 2;
+    background: var(--c-youtube);
+  }
+
+  /* The playhead box covers exactly the AMER column, with the line drawn
+     centered in the cut to its left. translateX(100%) is then AMER's width, so
+     the same transform works whatever the font renders; only transform moves. */
+  .playhead {
+    grid-row: 1;
+    grid-column: 2;
+    position: relative;
+    pointer-events: none;
+    transition: transform 0.55s cubic-bezier(0.45, 0, 0.2, 1);
+    will-change: transform;
+  }
+  .playhead::before,
+  .head {
+    position: absolute;
+    background: var(--accent);
+  }
+  .playhead::before {
+    content: '';
+    top: -3px;
+    bottom: -3px;
+    /* centered in the cut: half the gap plus half the line, back from AMER */
+    left: calc((var(--cut-gap) + var(--line-width)) / -2);
+    width: var(--line-width);
+  }
+  /* Same pentagon head as the work timeline's playhead. */
+  .head {
+    top: -10px;
+    left: calc(var(--cut-gap) / -2 - 4px); /* 8px head centered on the line */
+    width: 8px;
+    height: 8px;
+    clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+  }
+
+  @media (hover: hover) {
+    .logo:hover .playhead,
+    .logo:focus-visible .playhead {
+      /* line lands 2px past AMER's right edge */
+      transform: translateX(calc(100% + (var(--cut-gap) + var(--line-width)) / 2));
+    }
+  }
+  /* Reduced motion: it simply stays on the cut. */
+  @media (prefers-reduced-motion: reduce) {
+    .playhead,
+    .logo:hover .playhead,
+    .logo:focus-visible .playhead {
+      transform: none;
+      transition: none;
+    }
+  }
+</style>

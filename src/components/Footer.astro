@@ -1,0 +1,71 @@
+---
+import { site } from '../site';
+---
+
+<footer id="contact" class="footer">
+  <div class="contact">
+    <p class="kicker">Have footage? Let's cut it.</p>
+    <a class="email" href={`mailto:${site.email}`}>{site.email}</a>
+  </div>
+  <nav class="social" aria-label="Social">
+    {site.social.map((s) => <a href={s.href}>{s.label}</a>)}
+  </nav>
+  {site.credits && <p class="credits">{site.credits} · <a href="https://studio.blender.org/films/">studio.blender.org</a></p>}
+</footer>
+
+<style>
+  .footer {
+    margin: 72px var(--gutter) 48px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 28px;
+  }
+  .contact {
+    min-width: 0;
+  }
+  .kicker {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .email {
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+  }
+  .social {
+    display: flex;
+    gap: 24px;
+    font-size: 14px;
+  }
+  .social a {
+    color: var(--text-2);
+  }
+  .social a:hover {
+    color: var(--accent);
+  }
+
+  .credits {
+    flex-basis: 100%;
+    font: 11px/1.5 var(--mono);
+    color: var(--faint);
+  }
+  .credits a {
+    color: var(--faint);
+    text-decoration: underline;
+  }
+
+  @media (width < 760px) {
+    .footer {
+      margin: 56px 20px 32px;
+    }
+    .email {
+      font-size: 30px;
+    }
+  }
+</style>

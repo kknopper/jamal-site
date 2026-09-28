@@ -1,0 +1,1150 @@
+---
+import { getCollection } from 'astro:content';
+import { buildTimeline, TRACKS } from '../lib/timeline';
+import 'lite-youtube-embed/src/lite-yt-embed.css';
+
+const { projects, years, defaultIndex } = buildTimeline(await getCollection('projects'));
+const active = projects[defaultIndex];
+if (!active) throw new Error('No projects in src/content/projects');
+
+const total = projects.length;
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const position = `${pad2(defaultIndex + 1)} / ${pad2(total)}`;
+
+// Only what the browser needs. Escape '<' so the JSON can't end its script tag early.
+const clientData = projects.map(({ slug, title, client, type, len, year, role, note, preview, poster, full, aspect, track, start, width }) => ({
+  slug, title, client, type, len, year, role, note, preview, poster, full, aspect, track, start, width,
+}));
+const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
+---
+
+<section id="work" class="work">
+  <div class="work-head">
+    <h2>Selected work</h2>
+    <span class="count">{total} projects<span class="d-only"> · click a clip to load</span></span>
+  </div>
+
+  <div class="panel" data-work data-selected={defaultIndex}>
+    <script is:inline type="application/json" data-projects set:html={json}></script>
+    <p class="visually-hidden" aria-live="polite" data-status></p>
+
+    <div class="viewer">
+      <div class="info">
+        <div class="label d-only">PROJECT INFO</div>
+        <div class="m-meta m-only">
+          <span><span data-field="type">{active.type}</span> · <span data-field="len">{active.len}</span> · <span data-field="year">{active.year}</span></span>
+          <span class="accent" data-field="position">{position}</span>
+        </div>
+
+        <h3 class="title" data-field="title">{active.title}</h3>
+
+        <dl class="meta d-only">
+          <dt>CLIENT</dt><dd data-field="client">{active.client}</dd>
+          <dt>TYPE</dt><dd data-field="type">{active.type}</dd>
+          <dt>DUR</dt><dd data-field="len">{active.len}</dd>
+          <dt>YEAR</dt><dd data-field="year">{active.year}</dd>
+          <dt>ROLE</dt><dd data-field="role">{active.role}</dd>
+        </dl>
+        <p class="client-role m-only">
+          <span data-field="client">{active.client}</span> · <span data-field="role">{active.role}</span>
+        </p>
+
+        <p class="note" data-field="note">{active.note}</p>
+
+        <div class="actions">
+          <a
+            class="btn-pill watch"
+            href={active.full ?? '#'}
+            hidden={!active.full}
+            data-inline-video
+            data-watch
+          >
+            <span class="play" aria-hidden="true"></span><span data-watch-label>Watch full</span>
+          </a>
+          <button type="button" class="btn-round" data-prev aria-label="Previous project">‹</button>
+          <button type="button" class="btn-round" data-next aria-label="Next project">›</button>
+          <button type="button" class="btn-round copy" data-copy aria-label="Copy link to this project" title="Copy link">
+            <svg class="icon-link" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+              <path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.1-2.1a3 3 0 0 0-4.2-4.2l-.9.9"></path>
+              <path d="M9.5 6.5a3 3 0 0 0-4.2 0L3.2 8.6a3 3 0 0 0 4.2 4.2l.9-.9"></path>
+            </svg>
+            <svg class="icon-check" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 8.5l3 3 7-7"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="program">
+        <div class="program-bar d-only">
+          <span>PROGRAM: <span data-field="slug">{active.slug}</span><span data-aspect-label hidden={active.aspect !== '9:16'}> · 9:16</span></span>
+          <span class="accent" data-timecode>00:00:00:00</span>
+        </div>
+        <div class="preview" data-preview-box data-aspect={active.aspect}>
+          <video
+            data-preview
+            src={active.preview ?? undefined}
+            poster={active.poster ?? undefined}
+            hidden={!active.preview}
+            muted
+            loop
+            playsinline
+            disablepictureinpicture
+            preload="metadata"
+            aria-hidden="true"></video>
+          <span class="preview-ph" data-preview-ph hidden={!!active.preview}>
+            muted preview · <span data-field="title">{active.title}</span>
+          </span>
+          <div class="player" data-player hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="timeline" data-timeline>
+      <div class="tl-scroll" data-tl-scroll>
+        <div class="tl-inner">
+          <div class="row ruler" aria-hidden="true">
+            <span></span>
+            <div class="ruler-track" data-ruler>
+              <div class="years">
+                {years.map((y) => <span style={`--year-position:${y.pos}`}>{y.label}</span>)}
+              </div>
+              <div class="tc-ticks" data-tc-ticks></div>
+            </div>
+          </div>
+
+          <div class="tracks" role="group" aria-label="Project timeline" data-tracks>
+            {
+              TRACKS.map((track, ti) => (
+                <div class="row">
+                  <span class="track-label">{track.id}</span>
+                  <div class="lane" style={`--clip-color:${track.color}`}>
+                    {projects
+                      .filter((p) => p.track === ti)
+                      .map((p) => (
+                        <button
+                          type="button"
+                          class="clip"
+                          data-clip
+                          data-index={p.index}
+                          aria-pressed={p.index === defaultIndex ? 'true' : 'false'}
+                          tabindex={p.index === defaultIndex ? 0 : -1}
+                          aria-label={`${p.title}, ${p.type}, ${p.len}`}
+                          title={p.title}
+                          style={`--clip-start:${p.start};--clip-width:${p.width}`}
+                        >
+                          <span class="clip-title">{p.title}</span>
+                          <span class="clip-len">{p.len}</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              ))
+            }
+            <div class="playhead-rail">
+              <div class="playhead" data-playhead style={`--playhead:${active.start}`}>
+                <span
+                  class="playhead-head"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Playhead: scrub the preview"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow="0"
+                  aria-valuetext="00:00:00:00"
+                  data-playhead-handle></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="legend">
+        {TRACKS.map((t) => <span><span style={`color:${t.color}`}>■</span> {t.id} {t.type}</span>)}
+        <span class="swipe m-only">← swipe →</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { parseVideoUrl } from '../lib/video';
+  import { mountPlayer, unmountPlayer, PLAYER_START, type PlaybackClock } from '../lib/player';
+
+  type Project = {
+    slug: string;
+    title: string;
+    client: string;
+    type: string;
+    len: string;
+    year: string;
+    role: string;
+    note: string;
+    preview: string | null;
+    poster: string | null;
+    full: string | null;
+    aspect: '16:9' | '9:16';
+    track: number;
+    start: number;
+    width: number;
+  };
+
+  const FPS = 24;
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const timecode = (t: number) => {
+    const s = Math.floor(t);
+    return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60, Math.floor((t - s) * FPS)]
+      .map(pad2)
+      .join(':');
+  };
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const clamp = (n: number, min = 0, max = 1) => Math.min(max, Math.max(min, n));
+  /** Ruler label for a time in a long video: 5:00, 1:05:00 */
+  const clockLabel = (t: number) => {
+    const s = Math.round(t);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor(s / 60) % 60;
+    return h ? `${h}:${pad2(m)}:${pad2(s % 60)}` : `${m}:${pad2(s % 60)}`;
+  };
+
+  function initWork(root: HTMLElement) {
+    const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+    const projects: Project[] = JSON.parse($('[data-projects]').textContent ?? '[]');
+    const clips = [...root.querySelectorAll<HTMLButtonElement>('[data-clip]')];
+    const clipAt = (i: number) => clips.find((c) => Number(c.dataset.index) === i)!;
+    const tracks = $<HTMLElement>('[data-tracks]');
+    const scroller = $<HTMLElement>('[data-tl-scroll]');
+    const video = $<HTMLVideoElement>('[data-preview]');
+    const placeholder = $<HTMLElement>('[data-preview-ph]');
+    const tc = $<HTMLElement>('[data-timecode]');
+    const watch = $<HTMLAnchorElement>('[data-watch]');
+    const status = $<HTMLElement>('[data-status]');
+    const player = $<HTMLElement>('[data-player]');
+    const watchLabel = $<HTMLElement>('[data-watch-label]');
+    const previewBox = $<HTMLElement>('[data-preview-box]');
+    const aspectLabel = $<HTMLElement>('[data-aspect-label]');
+    const total = projects.length;
+    let sel = Number(root.dataset.selected) || 0;
+    let playing = false;
+    let scrubbing = false;
+    /** How far through the selected clip the playhead is (0–1). */
+    let progress = 0;
+    /** The full video's clock while "Watch full" plays (null if unreadable). */
+    let clock: PlaybackClock | null = null;
+    let followFrame = 0;
+    let scrubTime = 0;
+    const timelineEl = $<HTMLElement>('[data-timeline]');
+    const ticks = $<HTMLElement>('[data-tc-ticks]');
+    const playheadEl = $<HTMLElement>('[data-playhead]');
+    const handle = $<HTMLElement>('[data-playhead-handle]');
+    const lane = $<HTMLElement>('.lane');
+
+    const setField = (name: string, value: string) =>
+      root.querySelectorAll(`[data-field="${name}"]`).forEach((el) => (el.textContent = value));
+
+    // Preview loops only play while the viewer is on screen, and never with reduced motion.
+    let onScreen = false;
+    const syncPlayback = () => {
+      if (video.hidden || !video.src) return;
+      if (scrubbing) return video.pause();
+      if (onScreen && !reduceMotion.matches) video.play().catch(() => {});
+      else video.pause();
+    };
+    new IntersectionObserver(([entry]) => {
+      onScreen = entry?.isIntersecting ?? false;
+      syncPlayback();
+    }).observe(video);
+    reduceMotion.addEventListener('change', syncPlayback);
+
+    // ── Playhead ──────────────────────────────
+    // Sits at the start of the selected clip, then travels across it in step
+    // with the preview loop (the loop stands in for the whole project).
+    const setPlayhead = (next: number, time = next * (video.duration || 0)) => {
+      progress = clamp(next);
+      const p = projects[sel]!;
+      // Set on the playhead itself, not a parent, so only it restyles each frame.
+      playheadEl.style.setProperty('--playhead', String(p.start + p.width * progress));
+      const tcText = timecode(time);
+      tc.textContent = tcText;
+      handle.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
+      handle.setAttribute('aria-valuetext', tcText);
+    };
+
+    // Animate the playhead only when it jumps between clips, not while it plays.
+    const jump = () => {
+      if (reduceMotion.matches) return;
+      playheadEl.classList.add('is-jumping');
+      setTimeout(() => playheadEl.classList.remove('is-jumping'), 260);
+    };
+
+    const followVideo = (mediaTime: number) => {
+      if (!scrubbing && !playing && video.duration) setPlayhead(mediaTime / video.duration, mediaTime);
+    };
+    if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+      const onFrame: VideoFrameRequestCallback = (_now, meta) => {
+        followVideo(meta.mediaTime);
+        video.requestVideoFrameCallback(onFrame);
+      };
+      video.requestVideoFrameCallback(onFrame);
+    } else {
+      video.addEventListener('timeupdate', () => followVideo(video.currentTime));
+    }
+    // When a new preview loads mid-scrub, jump it to where the playhead is.
+    video.addEventListener('loadedmetadata', () => {
+      if (progress > 0) video.currentTime = progress * video.duration;
+    });
+
+    const loadPreview = (p: Project) => {
+      setPlayhead(0, 0);
+      if (p.preview) {
+        video.poster = p.poster ?? '';
+        if (video.getAttribute('src') !== p.preview) video.src = p.preview;
+        video.hidden = false;
+        placeholder.hidden = true;
+        syncPlayback();
+      } else {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        video.hidden = true;
+        placeholder.hidden = false;
+      }
+    };
+
+    // "Watch full" swaps the muted preview for the real player, with sound.
+    // ── Zoom to clip ──────────────────────────
+    // The timeline shows the window [--view-start, --view-end] of the 0–1 range. Zooming sets
+    // it to the selected clip; CSS transitions the two registered properties.
+    // The window leaves a few px either side of the clip so its selection
+    // outline (which sits outside the clip) isn't cut off at the lane edges.
+    const ZOOM_GUTTER_PX = 6;
+    let view: [number, number] = [0, 1];
+    const zoom = (p: Project | null) => {
+      root.classList.toggle('is-zoomed', !!p);
+      if (p) {
+        // Read the lane width after toggling: on mobile, zooming changes it.
+        const laneW = lane.getBoundingClientRect().width;
+        const pad = (p.width * ZOOM_GUTTER_PX) / Math.max(laneW - 2 * ZOOM_GUTTER_PX, 1);
+        view = [p.start - pad, p.start + p.width + pad];
+      } else {
+        view = [0, 1];
+        ticks.replaceChildren();
+      }
+      timelineEl.style.setProperty('--view-start', String(view[0]));
+      timelineEl.style.setProperty('--view-end', String(view[1]));
+    };
+
+    // Minute ruler for the full video, ~4–8 labels.
+    const buildTicks = (duration: number) => {
+      const steps = [5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+      const step = steps.find((st) => duration / st <= 8) ?? 3600;
+      const spans: HTMLElement[] = [];
+      for (let t = 0; t < duration - step * 0.6; t += step) {
+        const span = document.createElement('span');
+        const p = projects[sel]!;
+        const at = p.start + (t / duration) * p.width;
+        span.style.left = `${((at - view[0]) / (view[1] - view[0])) * 100}%`;
+        span.textContent = clockLabel(t);
+        spans.push(span);
+      }
+      ticks.replaceChildren(...spans);
+    };
+
+    // Follow the full video every frame.
+    const follow = () => {
+      cancelAnimationFrame(followFrame);
+      const tick = () => {
+        if (!clock || !playing) return;
+        const d = clock.duration();
+        const t = clock.time();
+        if (d && t !== null && !scrubbing) {
+          if (!ticks.childElementCount) buildTicks(d);
+          setPlayhead(t / d, t);
+        }
+        followFrame = requestAnimationFrame(tick);
+      };
+      followFrame = requestAnimationFrame(tick);
+    };
+
+    // "Watch full" swaps the muted preview for the real player, with sound,
+    // and zooms the timeline so the playhead can follow it.
+    const playFull = () => {
+      const p = projects[sel]!;
+      const src = p.full ? parseVideoUrl(p.full, location.href) : null;
+      if (!src) return false;
+      playing = true;
+      root.classList.add('is-playing');
+      video.pause();
+      video.hidden = true;
+      placeholder.hidden = true;
+      player.hidden = false;
+      watchLabel.textContent = 'Close player';
+      setPlayhead(0, 0);
+      tc.textContent = 'LOADING';
+      zoom(p);
+      mountPlayer(player, src, p.title).then((c) => {
+        if (!playing || projects[sel] !== p) return c?.destroy();
+        clock = c;
+        if (!c) {
+          // Plays, but can't be followed: undo the zoom.
+          zoom(null);
+          tc.textContent = 'PLAYING';
+          return;
+        }
+        root.classList.add('has-clock');
+        follow();
+      });
+      if (player.getBoundingClientRect().top < 0) {
+        player.scrollIntoView({ block: 'start', behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+      }
+      return true;
+    };
+
+    const stopFull = ({ restore = true } = {}) => {
+      if (!playing) return;
+      playing = false;
+      cancelAnimationFrame(followFrame);
+      clock = null;
+      root.classList.remove('is-playing', 'has-clock');
+      unmountPlayer(player);
+      player.hidden = true;
+      watchLabel.textContent = 'Watch full';
+      zoom(null);
+      if (restore) {
+        jump();
+        loadPreview(projects[sel]!);
+        centerClip(clipAt(sel), false);
+      }
+    };
+
+    document.addEventListener(PLAYER_START, (e) => {
+      if ((e as CustomEvent).detail !== player) stopFull();
+    });
+
+    watch.addEventListener('click', (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (playing) {
+        e.preventDefault();
+        stopFull();
+      } else if (playFull()) {
+        e.preventDefault();
+      }
+    });
+
+    const centerClip = (clip: HTMLElement, smooth: boolean) => {
+      if (scroller.scrollWidth <= scroller.clientWidth) return;
+      const box = scroller.getBoundingClientRect();
+      const r = clip.getBoundingClientRect();
+      scroller.scrollTo({
+        left: scroller.scrollLeft + (r.left - box.left) - (box.width - r.width) / 2,
+        behavior: smooth && !reduceMotion.matches ? 'smooth' : 'auto',
+      });
+    };
+
+    // ── Shareable links ───────────────────────
+    // Each project is addressable as #<file-name>, with underscores shown as
+    // hyphens (slowkitchen_1920s → #slowkitchen-1920s). Either form opens it.
+    // The URL follows the selection without adding history entries, so Back
+    // still leaves the page.
+    const hashId = (id: string) => id.replace(/_/g, '-');
+    const indexForHash = (hash: string) => {
+      const id = hashId(decodeURIComponent(hash.replace(/^#/, '')));
+      return id ? projects.findIndex((q) => hashId(q.slug) === id) : -1;
+    };
+    const projectUrl = (p: Project) => {
+      const url = new URL(location.href);
+      url.hash = hashId(p.slug);
+      return url.href;
+    };
+    const syncUrl = (p: Project) => history.replaceState(history.state, '', `#${hashId(p.slug)}`);
+
+    const select = (next: number, { focus = false, fromScrub = false } = {}) => {
+      const i = ((next % total) + total) % total;
+      const clip = clipAt(i);
+      if (focus) clip.focus({ preventScroll: true });
+      if (i === sel) return;
+      stopFull({ restore: false });
+      sel = i;
+      const p = projects[i]!;
+
+      for (const key of ['title', 'client', 'type', 'len', 'year', 'role', 'note', 'slug'] as const) {
+        setField(key, p[key]);
+      }
+      setField('position', `${pad2(i + 1)} / ${pad2(total)}`);
+      previewBox.dataset.aspect = p.aspect;
+      aspectLabel.hidden = p.aspect !== '9:16';
+
+      watch.hidden = !p.full;
+      watch.href = p.full ?? '#';
+      watch.dataset.videoTitle = p.title;
+
+      for (const c of clips) {
+        const on = c === clip;
+        c.setAttribute('aria-pressed', String(on));
+        c.tabIndex = on ? 0 : -1;
+      }
+      if (!fromScrub) jump();
+      loadPreview(p);
+      status.textContent = `${p.title}, project ${i + 1} of ${total}`;
+      if (!fromScrub) centerClip(clip, true);
+      syncUrl(p);
+    };
+
+    // Copy link: the share sheet on phones, the clipboard elsewhere.
+    const copyBtn = $<HTMLButtonElement>('[data-copy]');
+    let copiedTimer = 0;
+    copyBtn.addEventListener('click', async () => {
+      const p = projects[sel]!;
+      const url = projectUrl(p);
+      try {
+        if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+          await navigator.share({ title: `${p.title} — Jamal Amer`, url });
+          return;
+        }
+        await navigator.clipboard.writeText(url);
+        copyBtn.classList.add('is-copied');
+        status.textContent = 'Link copied';
+        clearTimeout(copiedTimer);
+        copiedTimer = window.setTimeout(() => copyBtn.classList.remove('is-copied'), 1600);
+      } catch {
+        // Share cancelled or clipboard blocked: put the link in the address bar at least.
+        syncUrl(p);
+      }
+    });
+
+    const showWork = (smooth: boolean) =>
+      document
+        .getElementById('work')
+        ?.scrollIntoView({ behavior: smooth && !reduceMotion.matches ? 'smooth' : 'instant', block: 'start' });
+
+    // Someone edits the hash or follows an in-page #<id> link.
+    addEventListener('hashchange', () => {
+      const i = indexForHash(location.hash);
+      if (i === -1) return;
+      select(i);
+      showWork(true);
+    });
+
+    // ── Scrubbing ─────────────────────────────
+    // Drag the playhead (or press on the ruler) to scrub the preview. Dragging
+    // past the end of a clip carries on into the next clip on the same track.
+    const scrubTo = (clientX: number) => {
+      const r = lane.getBoundingClientRect();
+      let p = projects[sel]!;
+      // Map the pointer through the visible window (the whole range, or the clip when zoomed).
+      const [v0, v1] = view;
+      const x = v0 + clamp((clientX - r.left) / r.width) * (v1 - v0);
+
+      if (playing) {
+        const d = clock?.duration();
+        if (!clock || !d) return;
+        const next = clamp((x - p.start) / p.width);
+        scrubTime = next * d;
+        setPlayhead(next, scrubTime);
+        clock.seek(scrubTime, false);
+        return;
+      }
+
+      if (x < p.start || x > p.start + p.width) {
+        const other = projects.find(
+          (q) => q.track === p.track && x >= q.start && x <= q.start + q.width,
+        );
+        if (other) {
+          select(projects.indexOf(other), { fromScrub: true });
+          p = other;
+        }
+      }
+      const next = clamp((x - p.start) / p.width);
+      setPlayhead(next);
+      if (!video.hidden && video.duration) video.currentTime = next * video.duration;
+    };
+
+    const startScrub = (e: PointerEvent) => {
+      if ((playing && !clock) || e.button !== 0) return;
+      e.preventDefault();
+      scrubbing = true;
+      root.classList.add('is-scrubbing');
+      video.pause();
+      const target = e.currentTarget as HTMLElement;
+      target.setPointerCapture(e.pointerId);
+      scrubTo(e.clientX);
+      const move = (ev: PointerEvent) => scrubTo(ev.clientX);
+      const end = () => {
+        scrubbing = false;
+        root.classList.remove('is-scrubbing');
+        target.removeEventListener('pointermove', move);
+        target.removeEventListener('pointerup', end);
+        target.removeEventListener('pointercancel', end);
+        if (playing) clock?.seek(scrubTime, true);
+        else syncPlayback();
+      };
+      target.addEventListener('pointermove', move);
+      target.addEventListener('pointerup', end);
+      target.addEventListener('pointercancel', end);
+    };
+    playheadEl.addEventListener('pointerdown', startScrub);
+    $<HTMLElement>('[data-ruler]').addEventListener('pointerdown', startScrub);
+
+    // Keyboard: ←/→ step one second (Shift: five), Home/End jump to the ends.
+    // On the full video: 5 s (Shift: 30 s).
+    handle.addEventListener('keydown', (e) => {
+      const full = playing ? clock?.duration() ?? 0 : 0;
+      if (playing && !full) return;
+      const dur = full || (video.hidden ? 0 : video.duration || 0);
+      const seconds = full ? (e.shiftKey ? 30 : 5) : e.shiftKey ? 5 : 1;
+      const step = seconds / (dur || 20);
+      const to: Record<string, number> = {
+        ArrowLeft: progress - step,
+        ArrowDown: progress - step,
+        ArrowRight: progress + step,
+        ArrowUp: progress + step,
+        Home: 0,
+        End: 1,
+      };
+      const next = to[e.key];
+      if (next === undefined) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (full) {
+        setPlayhead(next, clamp(next) * full);
+        clock!.seek(progress * full, true);
+        return;
+      }
+      video.pause();
+      setPlayhead(next);
+      if (dur) video.currentTime = progress * dur;
+    });
+    handle.addEventListener('blur', () => playing || syncPlayback());
+
+    for (const c of clips) c.addEventListener('click', () => select(Number(c.dataset.index)));
+    $('[data-prev]').addEventListener('click', () => select(sel - 1));
+    $('[data-next]').addEventListener('click', () => select(sel + 1));
+
+    tracks.addEventListener('keydown', (e) => {
+      const moves: Record<string, number> = {
+        ArrowLeft: sel - 1,
+        ArrowUp: sel - 1,
+        ArrowRight: sel + 1,
+        ArrowDown: sel + 1,
+        Home: 0,
+        End: total - 1,
+      };
+      const to = moves[e.key];
+      if (to === undefined) return;
+      e.preventDefault();
+      select(to, { focus: true });
+    });
+
+    // Opened from a project link (or refreshed on one): load it and land on
+    // the viewer. The browser's own scroll restoration runs after this script
+    // and would put the page back where it was, so turn it off for project
+    // links, and re-apply once late layout (fonts, load) has settled, unless
+    // the visitor has started scrolling by then.
+    const linked = indexForHash(location.hash);
+    if (linked !== -1) {
+      if (linked !== sel) select(linked, { fromScrub: true });
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+      let userMoved = false;
+      const moved = () => (userMoved = true);
+      for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) {
+        addEventListener(type, moved, { once: true, passive: true });
+      }
+      const land = () => userMoved || showWork(false);
+      land();
+      if (document.readyState !== 'complete') addEventListener('load', land, { once: true });
+      document.fonts?.ready.then(land);
+    }
+    centerClip(clipAt(sel), false);
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-work]').forEach(initWork);
+</script>
+
+<style>
+  .work {
+    padding: 72px var(--gutter) 0;
+  }
+  .work-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .count {
+    font: 13px var(--mono);
+    color: var(--muted);
+  }
+
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    background: var(--panel);
+    font: 12px var(--mono);
+    overflow: hidden;
+  }
+  .accent {
+    color: var(--accent);
+  }
+
+  /* ── Viewer ─────────────────────────────── */
+  .viewer {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+  .info {
+    padding: 24px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+  }
+  .label {
+    color: var(--faint);
+  }
+  .title {
+    font: 800 32px/1.02 var(--sans);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .meta {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 8px;
+    margin: 0;
+    color: var(--text-2);
+  }
+  .meta dt {
+    color: var(--faint);
+  }
+  .meta dd {
+    margin: 0;
+  }
+  .note {
+    font: 14px/1.5 var(--sans);
+    color: var(--text-2);
+  }
+  .actions {
+    margin-top: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .copy {
+    position: relative;
+  }
+  .copy svg {
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .icon-check {
+    position: absolute;
+    opacity: 0;
+    transform: scale(0.6);
+    color: var(--accent);
+  }
+  .copy.is-copied {
+    border-color: var(--accent);
+  }
+  .copy.is-copied .icon-link {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  .copy.is-copied .icon-check {
+    opacity: 1;
+    transform: none;
+  }
+
+  .program {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+  .program-bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .preview {
+    aspect-ratio: 16 / 9;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border);
+    background: repeating-linear-gradient(135deg, var(--stripe-c) 0 12px, var(--stripe-d) 12px 24px);
+    color: var(--faint);
+    overflow: hidden;
+  }
+  .preview video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    grid-area: 1 / 1;
+  }
+  .player {
+    grid-area: 1 / 1;
+    width: 100%;
+    height: 100%;
+    background: #000;
+  }
+  .player > :global(*) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    border: 0;
+  }
+  .player :global(lite-youtube iframe) {
+    width: 100%;
+    height: 100%;
+  }
+  /* Stop icon while the full video is playing */
+  .is-playing .watch .play {
+    width: 9px;
+    height: 9px;
+    border: 0;
+    background: currentColor;
+  }
+  /* Vertical projects (Shorts): a 9:16 frame pillarboxed in the 16:9 monitor.
+     The monitor keeps its size so the page doesn't jump between projects. */
+  .preview[data-aspect='9:16'] {
+    position: relative;
+    background: #000;
+  }
+  /* Absolutely positioned so height: 100% resolves against the monitor;
+     width then follows from the 9:16 ratio. */
+  .preview[data-aspect='9:16'] video,
+  .preview[data-aspect='9:16'] .player {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: auto;
+    height: 100%;
+    aspect-ratio: 9 / 16;
+    transform: translateX(-50%);
+  }
+  .preview-ph {
+    grid-area: 1 / 1;
+    padding: 0 12px;
+    text-align: center;
+  }
+
+  /* ── Timeline ───────────────────────────── */
+  .timeline {
+    --label-width: 60px;
+    padding: 16px 24px 22px;
+  }
+  .tl-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: var(--label-width) minmax(0, 1fr);
+    align-items: center;
+  }
+  .ruler {
+    color: var(--faint);
+    margin-bottom: 12px;
+  }
+  /* Zoom window: the timeline shows [--view-start, --view-end] of the 0–1 range.
+     Registered so the browser can transition them. */
+  @property --view-start {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 0;
+  }
+  @property --view-end {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 1;
+  }
+  .timeline {
+    --view-start: 0;
+    --view-end: 1;
+    transition:
+      --view-start 0.5s cubic-bezier(0.3, 0.7, 0.1, 1),
+      --view-end 0.5s cubic-bezier(0.3, 0.7, 0.1, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .timeline {
+      transition: none;
+    }
+  }
+
+  .ruler-track {
+    position: relative;
+    height: 1.4em;
+    overflow: clip;
+  }
+  .years,
+  .tc-ticks {
+    position: absolute;
+    inset: 0;
+    transition: opacity 0.3s;
+  }
+  .years span,
+  .tc-ticks :global(span) /* created by the script, so not scoped */ {
+    position: absolute;
+    top: 0;
+    white-space: nowrap;
+  }
+  .years span {
+    left: calc((var(--year-position) - var(--view-start)) / (var(--view-end) - var(--view-start)) * 100%);
+  }
+  .tc-ticks {
+    opacity: 0;
+    color: var(--muted);
+  }
+  .is-zoomed .years {
+    opacity: 0;
+  }
+  .is-zoomed .tc-ticks {
+    opacity: 1;
+    transition-delay: 0.2s;
+  }
+
+  .tracks {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .track-label {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    background: var(--panel);
+    color: var(--muted);
+  }
+  .lane {
+    position: relative;
+    overflow: clip;
+    overflow-clip-margin: 3px; /* room for the selected clip's outline */
+    height: 52px;
+    background: var(--lane);
+    border-radius: var(--radius-clip);
+  }
+
+  .clip {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: calc((var(--clip-start) - var(--view-start)) / (var(--view-end) - var(--view-start)) * 100%);
+    width: calc(var(--clip-width) / (var(--view-end) - var(--view-start)) * 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 3px;
+    min-width: 0;
+    padding: 6px 8px;
+    border: none;
+    border-radius: var(--radius-clip);
+    background: var(--clip-color);
+    color: var(--bg);
+    font: 12px var(--mono);
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    transition: filter 0.15s;
+  }
+  .clip:hover {
+    filter: brightness(1.08);
+  }
+  /* Selected clip: gold, matching the playhead */
+  .clip[aria-pressed='true'] {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  /* Keyboard focus: white, so it still reads on the selected clip */
+  .clip:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 1px;
+  }
+  .clip-title {
+    max-width: 100%;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .clip-len {
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+
+  /* Playhead: a 2px line with a wide invisible grab area and a head on top.
+     The rail spans exactly the lanes and is a size container, so 100cqw is the
+     lane width and the playhead can move with transform alone: no layout or
+     paint per frame, just compositing. */
+  .playhead-rail {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    left: var(--label-width);
+    right: 0;
+    container-type: inline-size;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -8px;
+    width: 16px;
+    transform: translate3d(calc((var(--playhead) - var(--view-start)) / (var(--view-end) - var(--view-start)) * 100cqw), 0, 0);
+    will-change: transform;
+    pointer-events: auto;
+    cursor: ew-resize;
+    touch-action: none;
+  }
+  .playhead::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 7px;
+    width: 2px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+  .playhead.is-jumping {
+    transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .playhead-head {
+    position: absolute;
+    top: -10px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+    transition: transform 0.15s;
+  }
+  .playhead:hover .playhead-head,
+  .is-scrubbing .playhead-head {
+    transform: scale(1.25);
+  }
+  .playhead-head:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+  .is-scrubbing,
+  .is-scrubbing * {
+    cursor: ew-resize !important;
+    user-select: none;
+  }
+  .is-playing:not(.has-clock) .playhead {
+    cursor: default;
+    pointer-events: none;
+  }
+  .ruler-track {
+    cursor: ew-resize;
+    touch-action: none;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin-top: 14px;
+    color: var(--muted);
+  }
+  .legend > span {
+    white-space: nowrap;
+  }
+  .swipe {
+    color: var(--faint);
+  }
+
+  /* ── Mobile: stacked viewer, swipeable timeline ── */
+  @media (width < 760px) {
+    .work {
+      padding: 48px 16px 0;
+    }
+    .viewer {
+      display: flex;
+      flex-direction: column;
+    }
+    .program {
+      order: -1;
+      padding: 0;
+    }
+    .preview {
+      border: none;
+      border-bottom: 1px solid var(--border);
+    }
+    /* Playing a vertical video full on a phone: the monitor grows to 9:16
+       (the viewer asked for it, so the layout change is expected). */
+    .is-playing .preview[data-aspect='9:16'] {
+      aspect-ratio: 9 / 16;
+      max-height: 75svh;
+    }
+    .info {
+      padding: 20px;
+      gap: 14px;
+      border-right: none;
+    }
+    .m-meta {
+      display: flex;
+      justify-content: space-between;
+      color: var(--faint);
+    }
+    .title {
+      font-size: 28px;
+      line-height: 1.05;
+    }
+    .client-role {
+      font: 15px var(--sans);
+      color: var(--text-2);
+    }
+    .note {
+      font-size: 15px;
+    }
+    .watch {
+      flex: 1;
+      height: 48px;
+      font-size: 15px;
+    }
+    .watch .play {
+      border-left-width: 9px;
+      border-top-width: 6px;
+      border-bottom-width: 6px;
+    }
+    .actions .btn-round {
+      width: 48px;
+      height: 48px;
+      font-size: 18px;
+    }
+    .timeline {
+      --label-width: 44px;
+      padding: 16px 0 18px 16px;
+    }
+    .tl-inner {
+      min-width: 880px;
+    }
+    /* Zoomed, the one clip fits the screen: no sideways scroll needed. */
+    .is-zoomed .tl-inner {
+      min-width: 0;
+    }
+    .lane {
+      height: 56px;
+    }
+  }
+</style>

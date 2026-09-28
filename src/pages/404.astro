@@ -1,0 +1,186 @@
+---
+// "Media Offline": the red frame every editor has seen when a clip loses its
+// source file. Served automatically for unknown URLs by Cloudflare Pages,
+// Netlify and `astro dev`/`astro preview` (built as dist/404.html).
+import Base from '../layouts/Base.astro';
+import { site } from '../site';
+import Logo from '../components/Logo.astro';
+
+// Decorative, in the order Premiere Pro stacks them on its offline frame
+// (English first, which is our headline). The headline carries the meaning,
+// so these are hidden from screen readers.
+const translations = [
+  { lang: 'ja', text: 'メディアオフライン' },
+  { lang: 'fr', text: 'Média hors ligne' },
+  { lang: 'de', text: 'Offline-Medien' },
+  { lang: 'zh-Hans', text: '脱机媒体文件' },
+  { lang: 'es', text: 'Medios sin conexión' },
+  { lang: 'it', text: 'Oggetto multimediale non in linea' },
+  { lang: 'ko', text: '미디어 오프라인' },
+  { lang: 'ru', text: 'Медиаданные в автономном режиме' },
+  { lang: 'pt-BR', text: 'Mídia offline' },
+];
+---
+
+<Base title={`Media offline — ${site.name}`} description="This page couldn't be found." noindex>
+  <div class="page">
+    <header class="top">
+      <Logo />
+      <span class="code">ERROR 404</span>
+    </header>
+
+    <main class="monitor">
+      <div class="program-bar">
+        <span>PROGRAM: <span data-missing-path>unknown_clip</span></span>
+        <span class="accent">--:--:--:--</span>
+      </div>
+
+      <div class="frame" role="img" aria-label="Media offline">
+        <div class="offline">
+          <p class="headline">Media Offline</p>
+          <ul class="translations" aria-hidden="true">
+            {translations.map((t) => <li lang={t.lang}>{t.text}</li>)}
+          </ul>
+          <p class="sub">The clip at this link was moved, renamed, or never existed.</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a class="btn-pill relink" href="/#work">
+          <span class="play" aria-hidden="true"></span>Back to the timeline
+        </a>
+        <a class="home" href={`mailto:${site.email}`}>Or tell Jamal a link is broken</a>
+      </div>
+    </main>
+  </div>
+</Base>
+
+<script>
+  // Show the path that was asked for, like the missing file name in an NLE.
+  const el = document.querySelector<HTMLElement>('[data-missing-path]');
+  const path = decodeURIComponent(location.pathname).replace(/^\/|\/$/g, '');
+  if (el && path) el.textContent = path.length > 48 ? `${path.slice(0, 47)}…` : path;
+</script>
+
+<style>
+  .page {
+    min-height: 100svh;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 28px var(--gutter) 48px;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(32px, 8vh, 96px);
+  }
+
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+  }
+  .code {
+    font: 13px var(--mono);
+    color: var(--muted);
+  }
+
+  .monitor {
+    width: min(100%, 960px);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font: 12px var(--mono);
+  }
+  .program-bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    color: var(--faint);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .program-bar > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .accent {
+    color: var(--accent);
+  }
+
+  /* The offline frame: Premiere's bright red fading down to maroon,
+     text left-aligned like the real thing. */
+  .frame {
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: center;
+    padding: 24px clamp(24px, 7%, 72px);
+    background: linear-gradient(180deg, #d63c3c 0%, #b32a31 45%, #5c1822 100%);
+    border: 1px solid var(--border);
+    color: #f2f0ea;
+    text-align: left;
+  }
+  .headline {
+    font: 900 clamp(40px, 8vw, 104px) / 0.9 var(--sans);
+    letter-spacing: -0.03em;
+    margin: 0 0 16px;
+  }
+  .translations {
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+    font: 500 15px/1.35 var(--sans), system-ui, sans-serif;
+    color: #f6d3cf;
+  }
+  .sub {
+    font: 13px/1.5 var(--mono);
+    color: #f6d3cf;
+    margin: 0;
+    max-width: 38ch;
+  }
+
+  .actions {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 24px;
+  }
+  .relink {
+    padding: 14px 22px;
+    font-size: 15px;
+  }
+  .home {
+    font: 13px var(--sans);
+    color: var(--text-2);
+  }
+  .home:hover {
+    color: var(--accent);
+  }
+
+  @media (width < 760px) {
+    .page {
+      padding: 20px 20px 32px;
+    }
+    .frame {
+      aspect-ratio: 4 / 5;
+    }
+    .sub {
+      font-size: 12px;
+    }
+    .translations {
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    /* Four languages are enough on a phone. */
+    .translations li:nth-child(n + 5) {
+      display: none;
+    }
+    .relink {
+      flex: 1;
+      height: 48px;
+    }
+  }
+</style>

@@ -1,0 +1,106 @@
+---
+// Modal player for "Play reel with sound" (any <a data-video href="…">).
+// "Watch full" plays inline in the work viewer instead (see WorkTimeline).
+// Players come from src/lib/player.ts. Unrecognised URLs (or a cmd/ctrl-click)
+// just follow the link.
+import 'lite-youtube-embed/src/lite-yt-embed.css';
+---
+
+<dialog class="video-dialog" data-video-dialog aria-labelledby="video-dialog-title">
+  <div class="vd-head">
+    <span id="video-dialog-title" data-vd-title></span>
+    <form method="dialog">
+      <button class="btn-round" aria-label="Close video">
+        <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" style="display:block">
+          <path d="M1.76 1.76 10.24 10.24 M10.24 1.76 1.76 10.24" stroke="currentColor" stroke-width="1.6"></path>
+        </svg>
+      </button>
+    </form>
+  </div>
+  <div class="vd-frame" data-vd-frame></div>
+</dialog>
+
+<script>
+  import { parseVideoUrl } from '../lib/video';
+  import { mountPlayer, preloadPlayer, unmountPlayer, PLAYER_START } from '../lib/player';
+
+  const dialog = document.querySelector<HTMLDialogElement>('[data-video-dialog]')!;
+  const frame = dialog.querySelector<HTMLElement>('[data-vd-frame]')!;
+  const titleEl = dialog.querySelector<HTMLElement>('[data-vd-title]')!;
+
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const link = (e.target as Element).closest<HTMLAnchorElement>('a[data-video]');
+    if (!link) return;
+    const src = parseVideoUrl(link.href, location.href);
+    if (!src) return;
+    e.preventDefault();
+    const title = link.dataset.videoTitle ?? '';
+    titleEl.textContent = title;
+    dialog.showModal();
+    mountPlayer(frame, src, title);
+  });
+
+  // Warm up the YouTube module on first hover/focus of any video link.
+  const warm = (e: Event) => {
+    if ((e.target as Element).closest?.('a[data-video], a[data-inline-video]')) preloadPlayer();
+  };
+  document.addEventListener('pointerover', warm, { passive: true });
+  document.addEventListener('focusin', warm);
+
+  // Click on the backdrop closes; closing removes the player so audio stops.
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+  dialog.addEventListener('close', () => unmountPlayer(frame));
+  document.addEventListener(PLAYER_START, (e) => {
+    if ((e as CustomEvent).detail !== frame && dialog.open) dialog.close();
+  });
+</script>
+
+<style>
+  .video-dialog {
+    width: min(1200px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    background: var(--panel);
+    color: var(--text);
+    overflow: hidden;
+  }
+  .video-dialog::backdrop {
+    background: rgb(8 8 7 / 0.88);
+  }
+  .vd-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 10px 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font: 12px var(--mono);
+    color: var(--faint);
+  }
+  .vd-head form {
+    display: contents;
+  }
+  .vd-frame {
+    aspect-ratio: 16 / 9;
+    max-height: calc(100dvh - 32px - 62px);
+    margin-inline: auto;
+    background: #000;
+  }
+  .vd-frame > :global(*) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    border: 0;
+  }
+  .vd-frame :global(lite-youtube iframe) {
+    width: 100%;
+    height: 100%;
+  }
+</style>
