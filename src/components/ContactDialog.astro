@@ -1,0 +1,413 @@
+---
+// Modal contact form with an old-CRT "power on / power off" effect.
+// Opened by any link with [data-contact] or href="#contact" (nav, "Let's chat").
+// Those links keep their real href, so without JS they still scroll / mailto.
+//
+// Sending: set `contactEndpoint` in src/site.ts (e.g. a Formspree URL) to POST
+// the form as JSON. Left empty, it opens the visitor's email app instead.
+import { site } from '../site';
+---
+
+<dialog
+  class="contact-dialog"
+  data-contact-dialog
+  data-endpoint={site.contactEndpoint}
+  data-email={site.email}
+  aria-labelledby="contact-title"
+>
+  <div class="screen">
+    <div class="bar">
+      <span class="chan" aria-hidden="true"><i></i>CH 03 · CONTACT</span>
+      <button type="button" class="btn-round" data-contact-close aria-label="Close contact form">
+        <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" style="display:block">
+          <path d="M1.76 1.76 10.24 10.24 M10.24 1.76 1.76 10.24" stroke="currentColor" stroke-width="1.6"></path>
+        </svg>
+      </button>
+    </div>
+
+    <form class="form" data-contact-form novalidate>
+      <h2 id="contact-title">Let’s chat</h2>
+      <p class="sub">Have a project in mind? Tell me a little about it and I’ll get back to you.</p>
+
+      <label class="field">
+        <span>Name</span>
+        <input type="text" name="name" autocomplete="name" required />
+      </label>
+      <label class="field">
+        <span>Email</span>
+        <input type="email" name="email" autocomplete="email" required />
+      </label>
+      <label class="field">
+        <span>Project</span>
+        <textarea name="message" rows="5" required placeholder="What are you making, and when do you need it?"></textarea>
+      </label>
+      <!-- Honeypot: real visitors never see or fill this. -->
+      <label class="visually-hidden" aria-hidden="true">
+        Website <input type="text" name="website" tabindex="-1" autocomplete="off" />
+      </label>
+
+      <div class="actions">
+        <button class="btn-pill" type="submit"><span class="play" aria-hidden="true"></span>Send message</button>
+        <p class="status" role="status" aria-live="polite" data-contact-status></p>
+      </div>
+    </form>
+
+    <div class="sent" data-contact-sent hidden>
+      <h2>Message sent</h2>
+      <p>Thanks! I’ll be in touch soon.</p>
+      <button type="button" class="btn-pill" data-contact-close>Close</button>
+    </div>
+
+    <span class="scan" aria-hidden="true"></span>
+    <span class="flash" aria-hidden="true"></span>
+  </div>
+</dialog>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('[data-contact-dialog]')!;
+  const form = dialog.querySelector<HTMLFormElement>('[data-contact-form]')!;
+  const sent = dialog.querySelector<HTMLElement>('[data-contact-sent]')!;
+  const status = dialog.querySelector<HTMLElement>('[data-contact-status]')!;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const { endpoint = '', email = '' } = dialog.dataset;
+
+  function openCRT() {
+    if (dialog.open) return;
+    dialog.classList.remove('is-closing');
+    dialog.classList.add('is-opening');
+    dialog.showModal();
+    dialog.querySelector<HTMLElement>('input[name="name"]')?.focus();
+  }
+
+  function closeCRT() {
+    if (!dialog.open || dialog.classList.contains('is-closing')) return;
+    if (reduce.matches) return dialog.close();
+    dialog.classList.remove('is-opening');
+    dialog.classList.add('is-closing');
+  }
+
+  // The animation ends on the dialog itself; ignore the overlays' own animations.
+  dialog.addEventListener('animationend', (e) => {
+    if (e.target !== dialog) return;
+    if (dialog.classList.contains('is-closing')) {
+      dialog.classList.remove('is-closing');
+      dialog.close();
+    } else {
+      dialog.classList.remove('is-opening');
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const link = (e.target as Element).closest<HTMLAnchorElement>('a[data-contact], a[href="#contact"]');
+    if (!link) return;
+    e.preventDefault();
+    openCRT();
+  });
+
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog || (e.target as Element).closest('[data-contact-close]')) closeCRT();
+  });
+  // Escape: play the power-off instead of snapping shut.
+  dialog.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    closeCRT();
+  });
+  dialog.addEventListener('close', () => {
+    form.reset();
+    form.hidden = false;
+    sent.hidden = true;
+    status.textContent = '';
+    form.querySelector('[type="submit"]')?.removeAttribute('disabled');
+  });
+
+  function done() {
+    form.hidden = true;
+    sent.hidden = false;
+    sent.querySelector<HTMLElement>('button')?.focus();
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    status.textContent = '';
+    if (!form.reportValidity()) return;
+
+    const data = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    if (data.website) return done(); // honeypot tripped: pretend it worked
+
+    const submit = form.querySelector<HTMLButtonElement>('[type="submit"]')!;
+    submit.disabled = true;
+
+    if (endpoint) {
+      status.textContent = 'Sending…';
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ name: data.name, email: data.email, message: data.message }),
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        done();
+      } catch {
+        submit.disabled = false;
+        status.textContent = `Couldn’t send that. Please try again or email ${email}.`;
+      }
+      return;
+    }
+
+    // No endpoint configured: hand off to the visitor's email app.
+    const body = `${data.message}\n\n— ${data.name} (${data.email})`;
+    location.href = `mailto:${email}?subject=${encodeURIComponent('Project inquiry from ' + data.name)}&body=${encodeURIComponent(body)}`;
+    submit.disabled = false;
+    status.textContent = 'Opening your email app…';
+  });
+</script>
+
+<style>
+  .contact-dialog {
+    width: min(560px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    /* Tube-shaped corners */
+    border-radius: 22px / 18px;
+    background: var(--panel);
+    color: var(--text);
+    overflow: hidden;
+    box-shadow:
+      0 0 0 4px #0a0a09,
+      0 0 60px rgb(224 164 58 / 0.08);
+  }
+  .contact-dialog::backdrop {
+    background: rgb(8 8 7 / 0.88);
+  }
+  :global(html:has(.contact-dialog[open])) {
+    overflow: hidden;
+  }
+
+  .screen {
+    position: relative;
+    max-height: calc(100dvh - 34px);
+    overflow-y: auto;
+  }
+
+  .bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px 10px 20px;
+    border-bottom: 1px solid var(--border);
+    font: 12px var(--mono);
+    letter-spacing: 0.08em;
+    color: var(--faint);
+  }
+  .chan i {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    vertical-align: 1px;
+  }
+
+  .form,
+  .sent {
+    display: grid;
+    gap: 16px;
+    padding: 28px 24px 26px;
+  }
+  .sent {
+    justify-items: start;
+    min-height: 280px;
+    align-content: center;
+  }
+  h2 {
+    font-size: clamp(32px, 6vw, 44px);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    text-shadow: 0 0 18px rgb(242 240 234 / 0.25);
+  }
+  .sub,
+  .sent p {
+    color: var(--text-2);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .field {
+    display: grid;
+    gap: 6px;
+  }
+  .field span {
+    font: 11px var(--mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  input,
+  textarea {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-clip);
+    background: var(--lane);
+    color: var(--text);
+    font: 15px var(--sans);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  textarea {
+    resize: vertical;
+    min-height: 110px;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--faint);
+  }
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgb(224 164 58 / 0.18);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 18px;
+    margin-top: 4px;
+  }
+  .actions .btn-pill:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .status {
+    font: 12px var(--mono);
+    color: var(--text-2);
+  }
+  .status:empty {
+    display: none;
+  }
+
+  /* CRT surface: scanlines + vignette. Never blocks clicks. */
+  .scan {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 0.38) 100%),
+      repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 3px);
+  }
+  /* White-hot phosphor flash used by the on/off animations. */
+  .flash {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: #fff;
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .contact-dialog.is-opening {
+      animation: crt-on 0.6s both;
+    }
+    .contact-dialog.is-opening::backdrop {
+      animation: fade-in 0.4s both;
+    }
+    .contact-dialog.is-opening .flash {
+      animation: flash-on 0.6s both;
+    }
+
+    .contact-dialog.is-closing {
+      animation: crt-off 0.5s both;
+      pointer-events: none;
+    }
+    .contact-dialog.is-closing::backdrop {
+      animation: fade-out 0.5s both;
+    }
+    .contact-dialog.is-closing .flash {
+      animation: flash-off 0.5s both;
+    }
+  }
+
+  /* Beam sweeps out into a line, then the line opens into the picture. */
+  @keyframes crt-on {
+    0% {
+      transform: scale(0.01, 0.004);
+      opacity: 0;
+      animation-timing-function: ease-out;
+    }
+    12% {
+      transform: scale(0.05, 0.004);
+      opacity: 1;
+      box-shadow: 0 0 24px 4px rgb(255 255 255 / 0.9);
+      animation-timing-function: cubic-bezier(0.5, 0, 0.2, 1);
+    }
+    42% {
+      transform: scale(1, 0.004);
+      box-shadow: 0 0 36px 8px rgb(255 255 255 / 0.8);
+    }
+    52% {
+      transform: scale(1, 0.004);
+      animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    100% {
+      transform: scale(1, 1);
+    }
+  }
+  @keyframes flash-on {
+    0%,
+    52% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  /* Picture squashes to a line, the line shrinks to a dot, the dot fades. */
+  @keyframes crt-off {
+    0% {
+      transform: scale(1, 1);
+      animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+    }
+    40% {
+      transform: scale(1, 0.004);
+      box-shadow: 0 0 36px 8px rgb(255 255 255 / 0.8);
+      animation-timing-function: cubic-bezier(0.5, 0, 0.7, 1);
+    }
+    85% {
+      transform: scale(0.04, 0.004);
+      opacity: 1;
+      box-shadow: 0 0 24px 6px rgb(255 255 255 / 0.9);
+    }
+    100% {
+      transform: scale(0, 0.004);
+      opacity: 0;
+    }
+  }
+  @keyframes flash-off {
+    0% {
+      opacity: 0;
+    }
+    30%,
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+</style>

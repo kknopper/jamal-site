@@ -1,0 +1,222 @@
+---
+import { site } from '../site';
+const { heading, lead, body, closing, cta, stats, clientsLabel, clients } = site.about;
+---
+
+<section id="about" class="about" aria-labelledby="about-heading">
+  <h2 id="about-heading">{heading}</h2>
+
+  <div class="intro">
+    <p class="lead">{lead}</p>
+    <div class="story">
+      <p>{body}</p>
+      <p class="closing">{closing}</p>
+      <a class="btn-pill" href={`mailto:${site.email}`} data-contact>
+        <span class="play" aria-hidden="true"></span>{cta}
+      </a>
+    </div>
+  </div>
+
+  <dl class="stats">
+    {stats.map((s) => (
+      <div class="stat">
+        <dt>{s.label}</dt>
+        <dd>
+          {
+            Array.isArray(s.value)
+              ? s.value.map((v) =>
+                  typeof v === 'string' ? (
+                    <span class="line">{v}</span>
+                  ) : (
+                    <span class="tool">
+                      <img src={v.icon} alt="" width="28" height="28" />
+                      {v.name}
+                    </span>
+                  ),
+                )
+              : s.value
+          }
+        </dd>
+      </div>
+    ))}
+  </dl>
+
+  <div class="clients">
+    <p class="clients-label">{clientsLabel}</p>
+    <ul>
+      {clients.map((c) => (
+        <li>
+          {c.logo ? <img src={c.logo} alt={c.name} style={`--logo-h:${c.height ?? 34}px`} loading="lazy" /> : <span class="wordmark">{c.name}</span>}
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .about {
+    padding: 96px var(--gutter) 0;
+    scroll-margin-top: 24px;
+  }
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 32px;
+  }
+
+  .intro {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 48px;
+    align-items: start;
+  }
+  .lead {
+    font: 800 clamp(28px, 3.4vw, 48px) / 1.08 var(--sans);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .story {
+    display: grid;
+    gap: 18px;
+    justify-items: start;
+    padding-top: 6px;
+  }
+  .story p {
+    font: 16px/1.6 var(--sans);
+    color: var(--text-2);
+    text-wrap: pretty;
+  }
+  .story .closing {
+    color: var(--text);
+  }
+  .story .btn-pill {
+    margin-top: 6px;
+  }
+
+  /* Facts: hairline above, small label, plain value. No boxes. */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 48px;
+    margin: 72px 0 0;
+  }
+  .stat {
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+    display: grid;
+    gap: 12px;
+    align-content: start;
+  }
+  .stat dt {
+    font: 12px var(--mono);
+    color: var(--faint);
+  }
+  .stat dd {
+    margin: 0;
+    font: 800 clamp(22px, 2.2vw, 30px) / 1.15 var(--sans);
+    letter-spacing: -0.01em;
+  }
+  /* Plain text lists (e.g. specialties): one per line. */
+  .stat dd .line {
+    display: block;
+    font-size: clamp(18px, 1.8vw, 24px);
+  }
+  .stat dd .line + .line {
+    margin-top: 10px;
+  }
+  .stat dd .tool {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    white-space: nowrap;
+    font-size: clamp(18px, 1.8vw, 24px);
+  }
+  .stat dd .tool + .tool {
+    margin-top: 10px;
+  }
+  .stat dd .tool img {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    max-width: none;
+  }
+
+  .clients {
+    margin-top: 72px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .clients-label {
+    font: 12px var(--mono);
+    color: var(--faint);
+    margin-bottom: 28px;
+    text-align: center;
+  }
+  .clients ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 28px clamp(40px, 7vw, 96px);
+  }
+  .clients li {
+    opacity: 0.6;
+    transition: opacity 0.2s;
+  }
+  .clients li:hover {
+    opacity: 1;
+  }
+  /* Any transparent logo becomes white, whatever its original colours. */
+  .clients img {
+    display: block;
+    width: auto;
+    height: var(--logo-h, 34px); /* per-logo, set in site.ts, so they match visually */
+    filter: brightness(0) invert(1);
+  }
+  .wordmark {
+    font: 800 20px/1 var(--sans);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  @media (width < 760px) {
+    .about {
+      padding: 72px 20px 0;
+    }
+    h2 {
+      margin-bottom: 24px;
+    }
+    .intro {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+    }
+    .story .btn-pill {
+      width: 100%;
+      height: 48px;
+      font-size: 15px;
+    }
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 28px;
+      margin-top: 48px;
+    }
+    .clients {
+      margin-top: 48px;
+    }
+    /* Phones: smaller logos so all three sit on one row. */
+    .clients ul {
+      gap: 24px 28px;
+    }
+    .clients img {
+      height: calc(var(--logo-h, 34px) * 0.65);
+    }
+    .wordmark {
+      white-space: normal;
+      font-size: 18px;
+    }
+  }
+</style>

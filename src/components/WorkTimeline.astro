@@ -10,10 +10,12 @@ if (!active) throw new Error('No projects in src/content/projects');
 const total = projects.length;
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const position = `${pad2(defaultIndex + 1)} / ${pad2(total)}`;
+// First-person credit shown under the title, built from each project's role.
+const creditFor = (p: { role: string; client: string }) => `I was the ${p.role.toLowerCase()} on this video for ${p.client}.`;
 
 // Only what the browser needs. Escape '<' so the JSON can't end its script tag early.
-const clientData = projects.map(({ slug, title, client, type, len, year, role, note, preview, poster, full, aspect, track, start, width }) => ({
-  slug, title, client, type, len, year, role, note, preview, poster, full, aspect, track, start, width,
+const clientData = projects.map(({ slug, title, client, type, len, year, role, note, preview, poster, full, yt, playlist, aspect, track, start, width }) => ({
+  slug, title, client, type, len, year, role, note, preview, poster, full, yt, playlist, aspect, track, start, width,
 }));
 const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
 ---
@@ -37,6 +39,7 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
         </div>
 
         <h3 class="title" data-field="title">{active.title}</h3>
+        <p class="credit" data-credit>{creditFor(active)}</p>
 
         <dl class="meta d-only">
           <dt>CLIENT</dt><dd data-field="client">{active.client}</dd>
@@ -63,15 +66,20 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
           </a>
           <button type="button" class="btn-round" data-prev aria-label="Previous project">‹</button>
           <button type="button" class="btn-round" data-next aria-label="Next project">›</button>
-          <button type="button" class="btn-round copy" data-copy aria-label="Copy link to this project" title="Copy link">
-            <svg class="icon-link" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-              <path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.1-2.1a3 3 0 0 0-4.2-4.2l-.9.9"></path>
-              <path d="M9.5 6.5a3 3 0 0 0-4.2 0L3.2 8.6a3 3 0 0 0 4.2 4.2l.9-.9"></path>
+          <a
+            class="btn-outline playlist"
+            href={active.playlist ?? '#'}
+            hidden={!active.playlist}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-playlist
+            aria-label={`More videos I’ve edited for ${active.client} on YouTube (opens in a new tab)`}
+          >
+            <span>More I’ve edited for <span data-field="client">{active.client}</span></span>
+            <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3.5 2.5h6v6M9.5 2.5l-7 7"></path>
             </svg>
-            <svg class="icon-check" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 8.5l3 3 7-7"></path>
-            </svg>
-          </button>
+          </a>
         </div>
       </div>
 
@@ -92,9 +100,16 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
             disablepictureinpicture
             preload="metadata"
             aria-hidden="true"></video>
-          <span class="preview-ph" data-preview-ph hidden={!!active.preview}>
+          <span class="preview-ph" data-preview-ph hidden={!!active.preview || !!active.yt}>
             muted preview · <span data-field="title">{active.title}</span>
           </span>
+          <div
+            class="yt-preview"
+            data-yt-preview
+            hidden={!active.yt || !!active.preview}
+            style={active.yt ? `background-image:url(${active.poster})` : undefined}
+            aria-hidden="true"
+          ></div>
           <div class="player" data-player hidden></div>
         </div>
       </div>
@@ -170,6 +185,7 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
 <script>
   import { parseVideoUrl } from '../lib/video';
   import { mountPlayer, unmountPlayer, PLAYER_START, type PlaybackClock } from '../lib/player';
+  import { createYtPreview } from '../lib/ytpreview';
 
   type Project = {
     slug: string;
@@ -183,6 +199,8 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
     preview: string | null;
     poster: string | null;
     full: string | null;
+    yt: { id: string; start: number; end: number } | null;
+    playlist: string | null;
     aspect: '16:9' | '9:16';
     track: number;
     start: number;
@@ -216,6 +234,9 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
     const scroller = $<HTMLElement>('[data-tl-scroll]');
     const video = $<HTMLVideoElement>('[data-preview]');
     const placeholder = $<HTMLElement>('[data-preview-ph]');
+    const ytHost = $<HTMLElement>('[data-yt-preview]');
+    const playlistLink = $<HTMLAnchorElement>('[data-playlist]');
+    const credit = $<HTMLElement>('[data-credit]');
     const tc = $<HTMLElement>('[data-timecode]');
     const watch = $<HTMLAnchorElement>('[data-watch]');
     const status = $<HTMLElement>('[data-status]');
@@ -242,9 +263,25 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
     const setField = (name: string, value: string) =>
       root.querySelectorAll(`[data-field="${name}"]`).forEach((el) => (el.textContent = value));
 
+    // The preview is either a muted YouTube loop (a few seconds of the full video)
+    // or a self-hosted mp4. These helpers hide which one is showing.
+    let ytMode = false;
+    const yt = createYtPreview(ytHost, (seconds) => followVideo(seconds));
+    const previewLength = () => (ytMode ? yt.length : video.hidden ? 0 : video.duration || 0);
+    const previewPause = () => (ytMode ? yt.pause() : video.pause());
+    const previewSeek = (fraction: number) => {
+      if (ytMode) yt.seek(fraction * yt.length);
+      else if (!video.hidden && video.duration) video.currentTime = fraction * video.duration;
+    };
+
     // Preview loops only play while the viewer is on screen, and never with reduced motion.
     let onScreen = false;
     const syncPlayback = () => {
+      if (ytMode) {
+        if (!scrubbing && onScreen && !reduceMotion.matches) yt.play();
+        else yt.pause();
+        return;
+      }
       if (video.hidden || !video.src) return;
       if (scrubbing) return video.pause();
       if (onScreen && !reduceMotion.matches) video.play().catch(() => {});
@@ -253,13 +290,13 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
     new IntersectionObserver(([entry]) => {
       onScreen = entry?.isIntersecting ?? false;
       syncPlayback();
-    }).observe(video);
+    }).observe(previewBox);
     reduceMotion.addEventListener('change', syncPlayback);
 
     // ── Playhead ──────────────────────────────
     // Sits at the start of the selected clip, then travels across it in step
     // with the preview loop (the loop stands in for the whole project).
-    const setPlayhead = (next: number, time = next * (video.duration || 0)) => {
+    const setPlayhead = (next: number, time = next * previewLength()) => {
       progress = clamp(next);
       const p = projects[sel]!;
       // Set on the playhead itself, not a parent, so only it restyles each frame.
@@ -278,7 +315,8 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
     };
 
     const followVideo = (mediaTime: number) => {
-      if (!scrubbing && !playing && video.duration) setPlayhead(mediaTime / video.duration, mediaTime);
+      const length = previewLength();
+      if (!scrubbing && !playing && length) setPlayhead(mediaTime / length, mediaTime);
     };
     if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
       const onFrame: VideoFrameRequestCallback = (_now, meta) => {
@@ -296,13 +334,27 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
 
     const loadPreview = (p: Project) => {
       setPlayhead(0, 0);
-      if (p.preview) {
+      ytMode = !p.preview && !!p.yt;
+      if (ytMode) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        video.hidden = true;
+        placeholder.hidden = true;
+        ytHost.hidden = false;
+        yt.setClip(p.yt!);
+        syncPlayback();
+      } else if (p.preview) {
+        yt.pause();
+        ytHost.hidden = true;
         video.poster = p.poster ?? '';
         if (video.getAttribute('src') !== p.preview) video.src = p.preview;
         video.hidden = false;
         placeholder.hidden = true;
         syncPlayback();
       } else {
+        yt.pause();
+        ytHost.hidden = true;
         video.pause();
         video.removeAttribute('src');
         video.load();
@@ -375,7 +427,9 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
       playing = true;
       root.classList.add('is-playing');
       video.pause();
+      yt.pause();
       video.hidden = true;
+      ytHost.hidden = true;
       placeholder.hidden = true;
       player.hidden = false;
       watchLabel.textContent = 'Close player';
@@ -451,11 +505,6 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
       const id = hashId(decodeURIComponent(hash.replace(/^#/, '')));
       return id ? projects.findIndex((q) => hashId(q.slug) === id) : -1;
     };
-    const projectUrl = (p: Project) => {
-      const url = new URL(location.href);
-      url.hash = hashId(p.slug);
-      return url.href;
-    };
     const syncUrl = (p: Project) => history.replaceState(history.state, '', `#${hashId(p.slug)}`);
 
     const select = (next: number, { focus = false, fromScrub = false } = {}) => {
@@ -478,6 +527,11 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
       watch.href = p.full ?? '#';
       watch.dataset.videoTitle = p.title;
 
+      playlistLink.hidden = !p.playlist;
+      playlistLink.href = p.playlist ?? '#';
+      playlistLink.setAttribute('aria-label', `More videos I’ve edited for ${p.client} on YouTube (opens in a new tab)`);
+      credit.textContent = `I was the ${p.role.toLowerCase()} on this video for ${p.client}.`;
+
       for (const c of clips) {
         const on = c === clip;
         c.setAttribute('aria-pressed', String(on));
@@ -489,28 +543,6 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
       if (!fromScrub) centerClip(clip, true);
       syncUrl(p);
     };
-
-    // Copy link: the share sheet on phones, the clipboard elsewhere.
-    const copyBtn = $<HTMLButtonElement>('[data-copy]');
-    let copiedTimer = 0;
-    copyBtn.addEventListener('click', async () => {
-      const p = projects[sel]!;
-      const url = projectUrl(p);
-      try {
-        if (navigator.share && matchMedia('(pointer: coarse)').matches) {
-          await navigator.share({ title: `${p.title} — Jamal Amer`, url });
-          return;
-        }
-        await navigator.clipboard.writeText(url);
-        copyBtn.classList.add('is-copied');
-        status.textContent = 'Link copied';
-        clearTimeout(copiedTimer);
-        copiedTimer = window.setTimeout(() => copyBtn.classList.remove('is-copied'), 1600);
-      } catch {
-        // Share cancelled or clipboard blocked: put the link in the address bar at least.
-        syncUrl(p);
-      }
-    });
 
     const showWork = (smooth: boolean) =>
       document
@@ -556,7 +588,7 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
       }
       const next = clamp((x - p.start) / p.width);
       setPlayhead(next);
-      if (!video.hidden && video.duration) video.currentTime = next * video.duration;
+      previewSeek(next);
     };
 
     const startScrub = (e: PointerEvent) => {
@@ -564,7 +596,7 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
       e.preventDefault();
       scrubbing = true;
       root.classList.add('is-scrubbing');
-      video.pause();
+      previewPause();
       const target = e.currentTarget as HTMLElement;
       target.setPointerCapture(e.pointerId);
       scrubTo(e.clientX);
@@ -590,7 +622,7 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
     handle.addEventListener('keydown', (e) => {
       const full = playing ? clock?.duration() ?? 0 : 0;
       if (playing && !full) return;
-      const dur = full || (video.hidden ? 0 : video.duration || 0);
+      const dur = full || previewLength();
       const seconds = full ? (e.shiftKey ? 30 : 5) : e.shiftKey ? 5 : 1;
       const step = seconds / (dur || 20);
       const to: Record<string, number> = {
@@ -610,9 +642,9 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
         clock!.seek(progress * full, true);
         return;
       }
-      video.pause();
+      previewPause();
       setPlayhead(next);
-      if (dur) video.currentTime = progress * dur;
+      if (dur) previewSeek(progress);
     });
     handle.addEventListener('blur', () => playing || syncPlayback());
 
@@ -654,6 +686,8 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
       if (document.readyState !== 'complete') addEventListener('load', land, { once: true });
       document.fonts?.ready.then(land);
     }
+    // Start the selected project's preview (the page is rendered with its poster only).
+    loadPreview(projects[sel]!);
     centerClip(clipAt(sel), false);
   }
 
@@ -732,35 +766,46 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
     font: 14px/1.5 var(--sans);
     color: var(--text-2);
   }
+  .note:empty {
+    display: none;
+  }
+  .credit {
+    font: 12px/1.4 var(--mono);
+    letter-spacing: 0.02em;
+    color: var(--accent);
+  }
   .actions {
     margin-top: auto;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
   }
 
-  .copy {
-    position: relative;
+  /* Secondary action: outlined pill on its own row under Watch / prev / next. */
+  .btn-outline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-basis: 100%;
+    padding: 10px 18px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    color: var(--text);
+    font: 700 13px/1.25 var(--sans);
+    text-align: center;
+    transition: border-color 0.15s, color 0.15s;
   }
-  .copy svg {
-    transition: opacity 0.15s, transform 0.15s;
-  }
-  .icon-check {
-    position: absolute;
-    opacity: 0;
-    transform: scale(0.6);
+  .btn-outline:hover {
+    border-color: var(--accent);
     color: var(--accent);
   }
-  .copy.is-copied {
-    border-color: var(--accent);
+  .btn-outline svg {
+    flex: none;
   }
-  .copy.is-copied .icon-link {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  .copy.is-copied .icon-check {
-    opacity: 1;
-    transform: none;
+  .playlist[hidden] {
+    display: none;
   }
 
   .program {
@@ -791,6 +836,19 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
     height: 100%;
     object-fit: cover;
     grid-area: 1 / 1;
+  }
+  .yt-preview {
+    grid-area: 1 / 1;
+    width: 100%;
+    height: 100%;
+    background: #000 center / cover no-repeat;
+    pointer-events: none; /* a preview, not a player: no hover UI, no clicks */
+  }
+  .yt-preview :global(iframe) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
   }
   .player {
     grid-area: 1 / 1;
@@ -825,6 +883,7 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
   /* Absolutely positioned so height: 100% resolves against the monitor;
      width then follows from the 9:16 ratio. */
   .preview[data-aspect='9:16'] video,
+  .preview[data-aspect='9:16'] .yt-preview,
   .preview[data-aspect='9:16'] .player {
     position: absolute;
     top: 0;
@@ -1131,6 +1190,10 @@ const json = JSON.stringify(clientData).replace(/</g, '\\u003c');
       width: 48px;
       height: 48px;
       font-size: 18px;
+    }
+    .btn-outline {
+      min-height: 48px;
+      font-size: 14px;
     }
     .timeline {
       --label-width: 44px;
